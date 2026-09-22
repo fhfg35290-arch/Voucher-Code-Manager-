@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Ruijie Voucher POS</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, sans-serif; padding: 12px; background: #f1f5f9; margin: 0; color: #1e293b; }
+    .card { background: white; padding: 16px; border-radius: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); margin-bottom: 12px; }
+    h2, h3 { margin: 0 0 12px 0; text-align: center; color: #0f172a; }
+    h2 { font-size: 20px; font-weight: 800; }
+    h3 { font-size: 16px; }
+    button { padding: 12px; font-size: 15px; margin: 6px 0; width: 100%; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; }
+    .btn-connect { background: #16a34a; color: white; }
+    .btn-print { background: #2563eb; color: white; font-size: 17px; padding: 14px; }
+    .btn-save { background: #0891b2; color: white; }
+    .btn-clear { background: #ef4444; color: white; padding: 6px 14px; font-size: 12px; width: auto; border-radius: 6px; }
+    input[type="file"] { display: none; }
+    .btn-upload { background: #475569; color: white; display: inline-block; padding: 10px 14px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: bold; }
+    .badge { display: inline-block; padding: 5px 12px; border-radius: 12px; background: #e2e8f0; font-size: 13px; margin-top: 8px; font-weight: bold; }
+    .row { display: flex; gap: 10px; width: 100%; }
+    .form-group { flex: 1; min-width: 0; margin-bottom: 10px; }
+    label { font-size: 12px; font-weight: bold; color: #475569; display: block; margin-bottom: 5px; }
+    input[type="text"], input[type="number"] { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; outline: none; background: #fff; }
+    .print-box { display: flex; gap: 10px; align-items: center; }
+    .print-box input { width: 85px; text-align: center; font-size: 18px; font-weight: bold; }
+
+    #lockOverlay {
+      position: fixed; inset: 0; width: 100%; height: 100%;
+      background: rgba(15, 23, 42, 0.98); z-index: 999999;
+      display: flex; justify-content: center; align-items: center; padding: 16px;
+    }
+    .lock-box {
+      background: #ffffff; width: 100%; max-width: 380px;
+      border-radius: 16px; padding: 20px; text-align: center;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    }
+    .lock-box h2 { color: #0f172a; margin-bottom: 8px; }
+    .lock-box p { color: #475569; font-size: 13px; line-height: 1.5; margin-bottom: 14px; }
+    .dev-box { background: #f8fafc; padding: 10px; border-radius: 8px; border: 1px dashed #94a3b8; margin-bottom: 14px; }
+    .dev-id-text { font-family: monospace; font-size: 20px; font-weight: bold; color: #0284c7; user-select: all; }
+    .copy-id-btn { background: #64748b; color: white; font-size: 12px; padding: 7px 12px; border-radius: 6px; width: auto; margin-top: 6px; }
+    .lock-box input[type="text"] {
+      text-align: center; font-family: monospace; font-size: 16px;
+      letter-spacing: 1px; padding: 12px; border: 2px solid #cbd5e1;
+      border-radius: 8px; margin-bottom: 10px;
+    }
+    .lock-box .btn-activate { background: #0284c7; color: white; font-size: 16px; padding: 12px; }
+  </style>
+</head>
+<body>
+
+  <div id="lockOverlay">
+    <div class="lock-box">
+      <h2>🔒 လိုင်စင်သော့ဖွင့်ရန်</h2>
+      <p>ဆော့ဖ်ဝဲလ်အသုံးပြုရန် Key လိုအပ်ပါသည်။ အောက်ပါ Device ID ကို Admin ထံ ပေးပို့၍ Key တောင်းယူပါ (15 မိနစ် trial သို့မဟုတ် Lifetime)။</p>
+      
+      <div class="dev-box">
+        <div style="font-size: 12px; color: #64748b; margin-bottom: 4px;">သင့် Device ID:</div>
+        <div class="dev-id-text" id="displayDevId">RPOS-...</div>
+        <button type="button" class="copy-id-btn" onclick="_0x_cp()">📋 ID ကူးယူမည်</button>
+      </div>
+
+      <div style="margin-bottom: 8px;">
+        <input type="text" id="licenseKeyInput" placeholder="Key ရိုက်ထည့်ပါ..." autocomplete="off">
+      </div>
+
+      <button type="button" class="btn-activate" onclick="_0x_act()">🔓 သော့ဖွင့်မည်</button>
+      <div id="lockMessage" style="color: #dc2626; font-size: 13px; margin-top: 10px; font-weight: bold;"></div>
+    </div>
+  </div>
+
+  <h2>Ruijie Voucher POS (58mm Paper)</h2>
+
+  <div class="card">
+    <button class="btn-connect" onclick="connectPrinter()">🔌 ၁။ Printer ချိတ်ရန်</button>
+  </div>
+
+  <div class="card" style="text-align: center;">
+    <h3>📁 ၂။ Ruijie Voucher ဖိုင်ထည့်ရန်</h3>
+    <label class="btn-upload">
+      📄 ဖိုင် ရွေးချယ်ပါ (PDF / CSV / XLSX / TXT)
+      <input type="file" id="fileInput" accept=".pdf,.xlsx,.xls,.csv,.txt" onchange="handleFileUpload(event)">
+    </label>
+    <div><span id="stockStatus" class="badge">လက်ကျန်ကတ်: ၀ စောင်</span></div>
+    <div style="margin-top: 8px;">
+      <button class="btn-clear" onclick="clearVouchers()">ဖိုင်အဟောင်း ဖျက်မည်</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>⚙️ ၃။ စာရွက် Layout ပြင်ဆင်ရန်</h3>
+    <div class="row">
+      <div class="form-group">
+        <label>Wi-Fi Name (ဆိုင်အမည်):</label>
+        <input type="text" id="cfgWifiName" value="Chit Paing Lin">
+      </div>
+      <div class="form-group">
+        <label>Duration (အချိန်/သက်တမ်း):</label>
+        <input type="text" id="cfgDuration" value="ချိုပေ">
+      </div>
+    </div>
+    <button class="btn-save" onclick="saveSettings()">💾 Setting သိမ်းမည်</button>
+  </div>
+
+  <div class="card">
+    <h3>🖨️ ၄။ Voucher ထုတ်ယူရန်</h3>
+    <label>ထုတ်မည့် အရေအတွက် (စောင်ရေ):</label>
+    <div class="print-box">
+      <input type="number" id="printCount" value="3" min="1" max="100">
+      <button class="btn-print" onclick="printMultipleVouchers()">တောက်လျှောက် ထုတ်မည်</button>
+    </div>
+  </div>
+
+  <canvas id="printCanvas" style="display: none;"></canvas>
+
+  <!-- Tamper-Proof Cryptographic Core Engine -->
+  <script>
+    const _0x_e = 17n, _0x_n = 98699n;
+    let _0x_sec_token = null;
+
+    function _0x_s(k, v) {
+      try { localStorage.setItem(k, v); } catch(e){}
+      document.cookie = k + "=" + encodeURIComponent(v) + ";path=/;max-age=315360000";
+    }
+
+    function _0x_g(k) {
+      try { let v = localStorage.getItem(k); if (v !== null) return v; } catch(e){}
+      let m = document.cookie.match(new RegExp('(^| )' + k + '=([^;]+)'));
+      return m ? decodeURIComponent(m[2]) : null;
+    }
+
+    function _0x_dev() {
+      let saved = _0x_g('rpos_dev_id');
+      if (saved && saved.startsWith('RPOS-') && saved.length === 13) return saved;
+      let seed = (screen.width || 0) * 1000 + (screen.height || 0);
+      let rand = Math.floor(Math.sin(seed || 1234) * 100000000);
+      let hex = Math.abs(rand).toString(16).toUpperCase().padStart(8, '0').substring(0, 8);
+      let id = "RPOS-" + hex;
+      _0x_s('rpos_dev_id', id);
+      return id;
+    }
+
+    const _curDev = _0x_dev();
+    document.getElementById('displayDevId').innerText = _curDev;
+
+    function _0x_cp() {
+      const t = _curDev;
+      const i = document.createElement("input");
+      i.setAttribute("value", t);
+      i.style.position = "fixed"; i.style.left = "-9999px";
+      document.body.appendChild(i);
+      i.focus(); i.select(); i.setSelectionRange(0, 99999);
+      try { document.execCommand('copy'); alert("📋 Device ID ကူးယူပြီးပါပြီ:\n" + t); } catch(e){ prompt("ID Copy:", t); }
+      document.body.removeChild(i);
+    }
+
+    function _0x_vf(keyStr, type) {
+      if (!keyStr) return false;
+      const p = keyStr.split('-');
+      if (p.length !== 3 || p[0] !== (type === 'TRIAL' ? 'TR15' : 'LIFE')) return false;
+      const sig = BigInt(parseInt(p[1], 36));
+      let v = 1n, base = sig, exp = _0x_e;
+      while(exp > 0n) {
+        if(exp % 2n === 1n) v = (v * base) % _0x_n;
+        base = (base * base) % _0x_n; exp /= 2n;
+      }
+      let hv = 0n, f = _curDev + ":" + type + ":SECURE_2026";
+      for(let i=0; i<f.length; i++) hv = (hv * 31n + BigInt(f.charCodeAt(i))) % (_0x_n - 1n);
+      if (hv === 0n) hv = 7n;
+      if (v === hv && hv.toString(36).toUpperCase().padStart(4, '0') === p[2]) {
+        _0x_sec_token = hv;
+        return true;
+      }
+      return false;
+    }
+
+    function _0x_chk() {
+      const lk = _0x_g('rpos_lifetime_key');
+      if (_0x_vf(lk, 'LIFE')) {
+        document.getElementById('lockOverlay').style.display = 'none';
+        return;
+      }
+      const tk = _0x_g('rpos_trial_key');
+      const st = parseInt(_0x_g('rpos_trial_start') || '0', 10);
+      const consumed = _0x_g('rpos_trial_consumed') === 'true';
+
+      if (_0x_vf(tk, 'TRIAL')) {
+        const now = Date.now();
+        const duration = 15 * 60 * 1000;
+        if (now - st < duration && !consumed && st > 0) {
+          document.getElementById('lockOverlay').style.display = 'none';
+          setTimeout(() => {
+            _0x_s('rpos_trial_consumed', 'true');
+            _0x_sec_token = null;
+            document.getElementById('lockOverlay').style.display = 'flex';
+            document.getElementById('lockMessage').innerText = "Trial ၁၅ မိနစ် စမ်းသပ်ခွင့် ကုန်ဆုံးသွားပါပြီ။";
+          }, duration - (now - st));
+          return;
+        } else {
+          _0x_s('rpos_trial_consumed', 'true');
+          document.getElementById('lockOverlay').style.display = 'flex';
+          document.getElementById('lockMessage').innerText = "Trial ၁၅ မိနစ် ကုန်ဆုံးသွားပါပြီ။";
+          return;
+        }
+      }
+      document.getElementById('lockOverlay').style.display = 'flex';
+    }
+
+    function _0x_act() {
+      const k = document.getElementById('licenseKeyInput').value.trim().toUpperCase();
+      const m = document.getElementById('lockMessage');
+      if (!k) { m.innerText = "Key ထည့်သွင်းပေးပါ။"; return; }
+
+      if (_0x_vf(k, 'LIFE')) {
+        _0x_s('rpos_lifetime_key', k);
+        alert("🎉 Lifetime Key အောင်မြင်စွာ မှတ်ပုံတင်ပြီးပါပြီ။");
+        document.getElementById('lockOverlay').style.display = 'none';
+        return;
+      }
+      if (_0x_vf(k, 'TRIAL')) {
+        if (_0x_g('rpos_trial_consumed') === 'true') {
+          m.innerText = "❌ သင့်စက်တွင် Trial ၁ ကြိမ် သုံးစွဲပြီးဖြစ်ပါသည်။";
+          return;
+        }
+        _0x_s('rpos_trial_key', k);
+        _0x_s('rpos_trial_start', Date.now().toString());
+        alert("⏱️ 15 မိနစ် အခမဲ့စမ်းသပ်ခွင့် စတင်ပါပြီ!");
+        _0x_chk();
+        return;
+      }
+      m.innerText = "❌ Key မမှန်ကန်ပါ (သင့် Device ID နှင့် မကိုက်ညီပါ)";
+    }
+
+    _0x_chk();
+  </script>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+  <script>
+    let printCharacteristic = null;
+    if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+
+    function loadSettings() {
+      const s = JSON.parse(_0x_g('pos_solid_round_box_cfg') || '{}');
+      if (s.wifiName !== undefined) document.getElementById('cfgWifiName').value = s.wifiName;
+      if (s.duration !== undefined) document.getElementById('cfgDuration').value = s.duration;
+    }
+
+    function saveSettings() {
+      if (!_0x_sec_token) return;
+      _0x_s('pos_solid_round_box_cfg', JSON.stringify({
+        wifiName: document.getElementById('cfgWifiName').value,
+        duration: document.getElementById('cfgDuration').value
+      }));
+      alert('Setting မှတ်သားပြီးပါပြီ!');
+    }
+
+    function getVouchers() { return JSON.parse(_0x_g('ruijie_vouchers') || '[]'); }
+    function updateStockUI() { document.getElementById('stockStatus').innerText = "လက်ကျန်ကတ်: " + getVouchers().length + " စောင်"; }
+
+    async function handleFileUpload(e) {
+      if (!_0x_sec_token) { alert("လိုင်စင်သော့ဖွင့်ပြီးမှ သုံးပါ!"); e.target.value = ''; return; }
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const fileName = file.name.toLowerCase();
+      let extractedCodes = [];
+      try {
+        if (fileName.endsWith('.pdf')) {
+          const arrayBuffer = await file.arrayBuffer();
+          const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+          let fullText = "";
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const textContent = await page.getTextContent();
+            fullText += textContent.items.map(item => item.str).join(" ") + " ";
+          }
+          extractedCodes = extractCodesFromText(fullText);
+        } else {
+          const arrayBuffer = await file.arrayBuffer();
+          try {
+            const workbook = XLSX.read(arrayBuffer, { type: 'array', raw: false, cellText: true });
+            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+            const jsonData = XLSX.utils.sheet_to_json(firstSheet, { raw: false, defval: "" });
+            let codeColFound = false;
+
+            if (jsonData.length > 0) {
+              const firstRowKeys = Object.keys(jsonData[0]);
+              const voucherKey = firstRowKeys.find(k => /voucher\s*code|code|pin|password/i.test(k));
+              if (voucherKey) {
+                codeColFound = true;
+                jsonData.forEach(row => {
+                  let val = String(row[voucherKey] || '').trim();
+                  if (val && val.length >= 4) extractedCodes.push(val);
+                });
+              }
+            }
+            if (!codeColFound) {
+              const rawMatrix = XLSX.utils.sheet_to_json(firstSheet, { header: 1, raw: false });
+              let textBuffer = "";
+              rawMatrix.forEach(row => { textBuffer += row.join(" ") + " "; });
+              extractedCodes = extractCodesFromText(textBuffer);
+            }
+          } catch (xlsxErr) {
+            const text = await file.text();
+            extractedCodes = extractCodesFromText(text);
+          }
+        }
+
+        if (extractedCodes.length > 0) {
+          let currentList = getVouchers();
+          let uniqueCodes = Array.from(new Set(extractedCodes.map(c => String(c))));
+          _0x_s('ruijie_vouchers', JSON.stringify(currentList.concat(uniqueCodes)));
+          alert("Voucher " + uniqueCodes.length + " စောင် ထည့်သွင်းပြီးပါပြီ!");
+          updateStockUI();
+        } else {
+          alert('Voucher Code ရှာမတွေ့ပါ။');
+        }
+      } catch (err) {
+        alert('ဖိုင်ဖတ်ရာတွင် အမှားဖြစ်ပါသည်: ' + err.message);
+      }
+      e.target.value = '';
+    }
+
+    function extractCodesFromText(text) {
+      let cleanText = text.replace(/voucher\s*code|password|username|serial|duration|profile|status|created|no\.|s\/n|period|price|devices|traffic/gi, " ");
+      const tokens = cleanText.split(/[\s,;\n\r\t"']+/);
+      let codes = [];
+      tokens.forEach(t => {
+        let clean = String(t).trim();
+        if (/^[a-zA-Z0-9\-_]{4,16}$/.test(clean)) {
+          let lower = clean.toLowerCase();
+          if (!lower.includes('http') && !lower.includes('ruijie') && !lower.includes('reyee') && !lower.includes('wifi') && !/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(clean)) {
+            codes.push(clean);
+          }
+        }
+      });
+      return codes;
+    }
+
+    function clearVouchers() {
+      if (!_0x_sec_token) return;
+      if (confirm('သိမ်းထားသော Voucher များကို ဖျက်မှာ သေချာပါသလား?')) {
+        _0x_s('ruijie_vouchers', '[]');
+        updateStockUI();
+      }
+    }
+
+    async function connectPrinter() {
+      if (!_0x_sec_token) { alert("လိုင်စင်သော့ဖွင့်ပြီးမှ ချိတ်ပါ!"); return; }
+      try {
+        const device = await navigator.bluetooth.requestDevice({
+          acceptAllDevices: true,
+          optionalServices: [
+            '000018f0-0000-1000-8000-00805f9b34fb',
+            'e7810a71-73ae-499d-8c15-faa9aef0c3f2',
+            '49535343-fe7d-4ae5-8fa9-9fafd205e455'
+          ]
+        });
+        const server = await device.gatt.connect();
+        const services = await server.getPrimaryServices();
+        for (const s of services) {
+          const chars = await s.getCharacteristics();
+          for (const c of chars) {
+            if (c.properties.write || c.properties.writeWithoutResponse) {
+              printCharacteristic = c;
+              break;
+            }
+          }
+          if (printCharacteristic) break;
+        }
+        alert("Printer ချိတ်ဆက်မိပါပြီ!");
+      } catch (e) {
+        alert("Bluetooth Error: " + e);
+      }
+    }
+
+    function drawRoundedRect(ctx, x, y, width, height, radius) {
+      ctx.beginPath();
+      ctx.moveTo(x + radius, y);
+      ctx.lineTo(x + width - radius, y);
+      ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+      ctx.lineTo(x + width, y + height - radius);
+      ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+      ctx.lineTo(x + radius, y + height);
+      ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+      ctx.lineTo(x, y + radius);
+      ctx.quadraticCurveTo(x, y, x + radius, y);
+      ctx.closePath();
+      ctx.stroke();
+    }
+
+    async function printMultipleVouchers() {
+      if (!_0x_sec_token) { alert("လိုင်စင်သော့ဖွင့်ပြီးမှ Print ထုတ်ပါ!"); return; }
+      if (!printCharacteristic) { alert("၁။ Printer အရင်ချိတ်ပါ"); return; }
+
+      let count = parseInt(document.getElementById('printCount').value) || 1;
+      let vouchers = getVouchers();
+      if (vouchers.length === 0) { alert("Voucher ကုန်သွားပါပြီ!"); return; }
+      if (count > vouchers.length) count = vouchers.length;
+
+      const wifiName = document.getElementById('cfgWifiName').value || "Chit Paing Lin";
+      const duration = document.getElementById('cfgDuration').value || "ချိုပေ";
+
+      const width = 384;
+      const cardHeight = 110;
+      const gap = 8;
+      const totalHeight = count * (cardHeight + gap) + 20;
+
+      const canvas = document.getElementById('printCanvas');
+      canvas.width = width;
+      canvas.height = totalHeight;
+      const ctx = canvas.getContext('2d');
+
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, width, totalHeight);
+      ctx.fillStyle = "#000000";
+      ctx.strokeStyle = "#000000";
+      ctx.lineWidth = 3;
+
+      const splitX = 265;
+      const cornerRadius = 10; 
+
+      for (let i = 0; i < count; i++) {
+        let cleanCode = String(vouchers.shift()).trim().split(/\s+/)[0];
+        let y = i * (cardHeight + gap) + 4;
+
+        drawRoundedRect(ctx, 1, y, width - 2, cardHeight, cornerRadius);
+        ctx.beginPath();
+        ctx.moveTo(1, y + (cardHeight / 2));
+        ctx.lineTo(splitX, y + (cardHeight / 2));
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(splitX, y);
+        ctx.lineTo(splitX, y + cardHeight);
+        ctx.stroke();
+
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        ctx.font = "bold 25px sans-serif";
+        ctx.fillText(wifiName, 8, y + (cardHeight / 4));
+
+        ctx.font = "bold 32px monospace";
+        ctx.fillText(cleanCode, 8, y + (cardHeight * 3 / 4));
+
+        ctx.textAlign = "center";
+        ctx.font = "bold 26px sans-serif";
+        ctx.fillText(duration, splitX + ((width - splitX) / 2), y + (cardHeight / 2));
+      }
+
+      _0x_s('ruijie_vouchers', JSON.stringify(vouchers));
+      updateStockUI();
+
+      const imgData = ctx.getImageData(0, 0, width, totalHeight);
+      const data = imgData.data;
+      const widthBytes = width / 8;
+      let rasterData = [];
+
+      for (let y = 0; y < totalHeight; y++) {
+        for (let x = 0; x < widthBytes; x++) {
+          let byte = 0;
+          for (let b = 0; b < 8; b++) {
+            let px = (y * width + (x * 8 + b)) * 4;
+            if (data[px] < 128) byte |= (1 << (7 - b));
+          }
+          rasterData.push(byte);
+        }
+      }
+
+      const xL = widthBytes % 256, xH = Math.floor(widthBytes / 256);
+      const yL = totalHeight % 256, yH = Math.floor(totalHeight / 256);
+
+      let header = [0x1B, 0x40, 0x1D, 0x76, 0x30, 0x00, xL, xH, yL, yH];
+      let fullBytes = new Uint8Array(header.length + rasterData.length + 3);
+      fullBytes.set(header, 0);
+      fullBytes.set(rasterData, header.length);
+      fullBytes.set([0x0A
